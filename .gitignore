@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+!.env.example
+pnpm-debug.log*
+npm-debug.log*
+.pnpm-store/
+.npm-cache/

@@ -1,0 +1,10 @@
+{
+  "name": "@microtools/site-template",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Copy-and-go Next.js SSG scaffold for a single-purpose tool site.",
+  "type": "module",
+  "bin": {
+    "create-site": "./bin/create-site.mjs"
+  }
+}
