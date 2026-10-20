@@ -1,0 +1,35 @@
+/**
+ * 并行部署用的预览 Worker（BING-39）：`blurface-vite-preview`。
+ *
+ * 与 wrangler.jsonc（线上 `blurface`）**同代码、同 R2 桶**，只换 worker 名和资源目录，
+ * 这样对照的是同一份构建产物，差异只可能来自框架迁移本身，不会来自配置漂移。
+ *
+ * 部署：
+ *   pnpm --filter blurface build
+ *   pnpm dlx wrangler@^4 deploy --config wrangler.preview.jsonc
+ *
+ * 预览域不该被收录：构建脚本会把 `_headers` 追加一条 `X-Robots-Tag: noindex`
+ * （见 scripts/preview-headers.mjs）。线上 worker 不受影响。
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "blurface-vite-preview",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist/web",
+    // 与线上一致：未知路径回退 404.html（真 404），目录/扁平 html 都按无斜杠规范化。
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  },
+  "r2_buckets": [
+    {
+      "binding": "CORE_WASM",
+      "bucket_name": "blurface-assets"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
