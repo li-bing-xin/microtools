@@ -89,6 +89,21 @@ git push origin main --tags
 
 站点侧从此 `--to 1.1.0` 可拉到。tag 是唯一的上游版本定位方式；不引入 registry、不引入 submodule。
 
+## 工作区级漂移检测（BING-48 autopilot）
+
+站点侧 `--check` 靠站点自己跑；工作区层面由每周 autopilot 统一扫一遍（探测端是本仓库的 `bin/drift-check.mjs`，只读、绝不升级）：
+
+```bash
+node bin/drift-check.mjs            # 扫 owner 下所有未归档仓库，找带 src/shared/VERSION 的消费方，人可读报告
+node bin/drift-check.mjs --json     # 结构化输出，含建议工单（title/body），由 agent 查重后经 multica 开单
+node bin/drift-check.mjs --self-test
+```
+
+- 消费方判定：仓库 default 分支存在 `src/shared/VERSION`；上游取站根 `.shared-upstream`，缺省 microtools。
+- 落后 → 开一张升级工单（标题 `<站点> 共享层落后：v<当前> → v<最新>`，附两 tag 间 shared/ commit 摘要、升级命令、验收标准）；有 `DIVERGED.md` → 列一行「有意分叉」跳过；上游读不到 → 明确标「无法判定」，绝不默认最新。
+- 仓库**归档 = 退出检测**（站点退役/夹具收场的正规方式）。
+- autopilot 侧约定挂在 Multica issue BING-48 上（每周 cron）；本文件只描述探测端行为。
+
 ## 常见问题
 
 **同步时提示 `upstream tag vX declares shared/VERSION = Y`**

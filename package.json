@@ -11,6 +11,7 @@
   "scripts": {
     "create-site": "node bin/create-site.mjs",
     "build:shared": "node scripts/build-shared.mjs",
+    "drift-check": "node bin/drift-check.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "node scripts/build-shared.mjs && node scripts/verify.mjs && node scripts/verify-create-site.mjs",
     "verify": "npm test"
