@@ -9,6 +9,7 @@
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
     "verify": "pnpm run build && node scripts/verify.mjs",
-    "new-site": "node packages/site-template/bin/create-site.mjs"
+    "new-site": "node packages/site-template/bin/create-site.mjs",
+    "seo-parity": "node scripts/seo-parity.mjs"
   }
 }

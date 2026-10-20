@@ -18,6 +18,7 @@ docs/
   playbook.md         # 调研 → 立项 → 开发 → 验收 → 运营 的标准作业程序
   adr/                # 跨项目架构决策（ADR-lite）
 scripts/verify.mjs    # 共享包契约冒烟校验
+scripts/seo-parity.mjs # 迁移对照：两个 base URL 逐条比 SEO 表面（title/canonical/hreflang/JSON-LD/og/sitemap/robots）
 ```
 
 ## 常用命令
@@ -29,6 +30,7 @@ pnpm build              # 所有包编译到 dist/
 pnpm verify             # build + 契约冒烟校验
 pnpm new-site <name> --mode spa|prerender --domain https://<domain> --name "<Brand>"
 pnpm --filter <name> build   # 按模式：SPA 只 build；prerender 加预渲染 + sitemap 校验
+pnpm seo-parity https://prod.example https://preview.example.workers.dev   # 差异表为空才算迁移完成
 ```
 
 ## 边界
