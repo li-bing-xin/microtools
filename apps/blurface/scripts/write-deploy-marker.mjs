@@ -24,7 +24,7 @@ function resolveSha() {
 
 const sha = resolveSha();
 const releasedAt = new Date().toISOString();
-const body = `Blurface deploy marker\ngit_sha=${sha}\nreleased_at_utc=${releasedAt}\n`;
+const body = `blurface deploy marker\ngit_sha=${sha}\nreleased_at_utc=${releasedAt}\n`;
 
 writeFileSync(join(appRoot, "public", "deploy-marker.txt"), body);
 console.log(`[deploy-marker] git_sha=${sha} released_at_utc=${releasedAt}`);

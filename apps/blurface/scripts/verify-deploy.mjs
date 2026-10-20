@@ -1,66 +1,95 @@
 #!/usr/bin/env node
 /**
- * 部署校验：确认某个 commit 真的上线了，而不是「合并了就算上线」。
+ * 部署校验（BING-37）：确认某个 commit 真的上线了，而不是"合并了就算上线"。
  *
- * 轮询 <site>/deploy-marker.txt（构建期由 write-deploy-marker.mjs 写入 git sha），
- * 直到线上 sha 与目标一致；超时仍不一致则非零退出，并打印线上实际 sha。
+ * 拉 https://blurface.dev/deploy-marker.txt（prebuild 生成，内容含构建时的 git sha），
+ * 轮询到 git_sha 与本 commit 匹配为止；超时仍不匹配则非零退出，并报出线上实际 sha。
  *
- *   node scripts/verify-deploy.mjs 083b22b --url https://example.com/deploy-marker.txt
- *   node scripts/verify-deploy.mjs 083b22b --url ... --timeout 120 --interval 10
+ *   node scripts/verify-deploy.mjs 083b22b
+ *   node scripts/verify-deploy.mjs 083b22b --timeout 120 --interval 10
+ *   node scripts/verify-deploy.mjs 083b22b --json   # 给 BING-26 状态板等机器调用
  *
- * 退出码：0 已上线 / 1 超时未上线 / 2 参数错误。支持 >= 7 位短 sha。
+ * 默认：10 分钟超时、30 秒轮询。退出码：0 已上线 / 1 超时未上线 / 2 参数错误。
+ * 支持完整 sha 或 >=7 位短 sha（marker 里是完整 sha，前缀匹配）。
  */
+
+const DEFAULT_URL = "https://blurface.dev/deploy-marker.txt";
 const DEFAULT_TIMEOUT_SEC = 600;
 const DEFAULT_INTERVAL_SEC = 30;
 const REQUEST_TIMEOUT_MS = 15_000;
 
-function usage(message) {
-  if (message) console.error(`[verify-deploy] ${message}`);
+const EXIT_LIVE = 0;
+const EXIT_NOT_LIVE = 1;
+const EXIT_USAGE = 2;
+
+function die(message) {
+  console.error(`[verify-deploy] ${message}`);
   console.error(
-    "usage: node scripts/verify-deploy.mjs <sha> --url <marker-url> [--timeout <seconds>] [--interval <seconds>]",
+    "usage: node scripts/verify-deploy.mjs <sha> [--timeout <seconds>] [--interval <seconds>] [--url <marker-url>] [--json]",
   );
-  process.exit(2);
+  process.exit(EXIT_USAGE);
 }
 
 function parseArgs(argv) {
-  const options = {
+  const opts = {
     sha: null,
-    url: null,
     timeoutSec: DEFAULT_TIMEOUT_SEC,
     intervalSec: DEFAULT_INTERVAL_SEC,
+    url: DEFAULT_URL,
+    json: false,
   };
 
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === "--url" || arg === "--timeout" || arg === "--interval") {
-      const value = argv[index + 1];
-      if (value === undefined) usage(`${arg} needs a value`);
-      index += 1;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "--help" || arg === "-h") {
+      console.log(
+        "usage: node scripts/verify-deploy.mjs <sha> [--timeout <seconds>] [--interval <seconds>] [--url <marker-url>] [--json]",
+      );
+      process.exit(EXIT_LIVE);
+    }
+    if (arg === "--json") {
+      opts.json = true;
+      continue;
+    }
+    if (arg === "--timeout" || arg === "--interval" || arg === "--url") {
+      const value = argv[i + 1];
+      if (value === undefined) die(`${arg} needs a value`);
+      i += 1;
       if (arg === "--url") {
         try {
-          new URL(value);
+          const parsed = new URL(value);
+          if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+            die(`--url must be http(s): ${value}`);
+          }
         } catch {
-          usage(`--url is not a valid URL: ${value}`);
+          die(`--url is not a valid URL: ${value}`);
         }
-        options.url = value;
+        opts.url = value;
       } else {
         const seconds = Number(value);
-        if (!Number.isFinite(seconds) || seconds <= 0) usage(`${arg} must be a positive number`);
-        if (arg === "--timeout") options.timeoutSec = seconds;
-        else options.intervalSec = seconds;
+        if (!Number.isFinite(seconds) || seconds <= 0) die(`${arg} must be a positive number`);
+        if (arg === "--timeout") opts.timeoutSec = seconds;
+        else opts.intervalSec = seconds;
       }
       continue;
     }
-    if (arg.startsWith("-")) usage(`unknown option: ${arg}`);
-    if (options.sha !== null) usage(`unexpected extra argument: ${arg}`);
-    options.sha = arg;
+    if (arg.startsWith("-")) die(`unknown option: ${arg}`);
+    if (opts.sha !== null) die(`unexpected extra argument: ${arg}`);
+    opts.sha = arg;
   }
 
-  if (options.sha === null) usage("missing commit sha");
-  if (!/^[0-9a-f]{7,40}$/i.test(options.sha)) usage(`not a git sha: ${options.sha}`);
-  if (options.url === null) usage("--url is required (e.g. https://example.com/deploy-marker.txt)");
+  if (opts.sha === null) die("missing commit sha");
+  if (!/^[0-9a-f]{7,40}$/i.test(opts.sha)) die(`not a git sha (want 7-40 hex chars): ${opts.sha}`);
 
-  return options;
+  return opts;
+}
+
+function log(message) {
+  console.error(`[verify-deploy] ${message}`);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function parseMarker(text) {
@@ -72,56 +101,112 @@ function parseMarker(text) {
   return fields;
 }
 
+async function fetchMarker(url) {
+  const target = new URL(url);
+  // 绕过 CDN / 浏览器缓存：marker 每次部署都会变，但 URL 不变。
+  target.searchParams.set("_", String(Date.now()));
+  const response = await fetch(target, {
+    headers: { "cache-control": "no-cache", pragma: "no-cache" },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return parseMarker(await response.text());
+}
+
 function shaMatches(expected, live) {
   if (!live || !/^[0-9a-f]{7,40}$/i.test(live)) return false;
-  return expected.toLowerCase().startsWith(live.toLowerCase()) || live.toLowerCase().startsWith(expected.toLowerCase());
+  const want = expected.toLowerCase();
+  const got = live.toLowerCase();
+  return want.startsWith(got) || got.startsWith(want);
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function main() {
+  const opts = parseArgs(process.argv.slice(2));
+  const startedAt = Date.now();
+  const deadline = startedAt + opts.timeoutSec * 1000;
 
-const options = parseArgs(process.argv.slice(2));
-const deadline = Date.now() + options.timeoutSec * 1000;
-let attempts = 0;
-let lastLiveSha = null;
-let lastError = null;
+  log(
+    `waiting for ${opts.sha} on ${opts.url} (timeout ${opts.timeoutSec}s, interval ${opts.intervalSec}s)`,
+  );
 
-console.error(
-  `[verify-deploy] waiting for ${options.sha} on ${options.url} (timeout ${options.timeoutSec}s, interval ${options.intervalSec}s)`,
-);
+  let attempts = 0;
+  let liveSha = null;
+  let releasedAt = null;
+  let lastError = null;
 
-for (;;) {
-  attempts += 1;
-  try {
-    const target = new URL(options.url);
-    target.searchParams.set("_", String(Date.now()));
-    const response = await fetch(target, {
-      headers: { "cache-control": "no-cache", pragma: "no-cache" },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const marker = parseMarker(await response.text());
-    lastLiveSha = marker.git_sha ?? null;
-    lastError = null;
+  for (;;) {
+    attempts += 1;
+    const checkedAt = new Date().toISOString();
+    try {
+      const marker = await fetchMarker(opts.url);
+      liveSha = marker.git_sha ?? null;
+      releasedAt = marker.released_at_utc ?? null;
+      lastError = null;
 
-    if (shaMatches(options.sha, lastLiveSha)) {
-      console.log(
-        `[verify-deploy] OK ${options.sha} is live (git_sha=${lastLiveSha} released_at_utc=${marker.released_at_utc ?? "unknown"}, ${attempts} attempt(s))`,
+      if (shaMatches(opts.sha, liveSha)) {
+        const elapsedMs = Date.now() - startedAt;
+        log(
+          `live: git_sha=${liveSha} released_at_utc=${releasedAt ?? "unknown"} (attempt ${attempts}, ${(elapsedMs / 1000).toFixed(1)}s)`,
+        );
+        if (opts.json) {
+          console.log(
+            JSON.stringify({
+              ok: true,
+              expected_sha: opts.sha,
+              live_sha: liveSha,
+              released_at_utc: releasedAt,
+              url: opts.url,
+              attempts,
+              elapsed_ms: elapsedMs,
+            }),
+          );
+        } else {
+          console.log(
+            `[verify-deploy] OK ${opts.sha} is live (git_sha=${liveSha} released_at_utc=${releasedAt ?? "unknown"})`,
+          );
+        }
+        process.exit(EXIT_LIVE);
+      }
+      log(
+        `attempt ${attempts} at ${checkedAt}: live git_sha=${liveSha ?? "unknown"} released_at_utc=${releasedAt ?? "unknown"} — not yet`,
       );
-      process.exit(0);
+    } catch (error) {
+      lastError = error;
+      log(`attempt ${attempts} at ${checkedAt}: fetch failed (${error.message}) — retrying`);
     }
-    console.error(
-      `[verify-deploy] attempt ${attempts}: live git_sha=${lastLiveSha ?? "unknown"} — not yet`,
-    );
-  } catch (error) {
-    lastError = error;
-    console.error(`[verify-deploy] attempt ${attempts}: fetch failed (${error.message}) — retrying`);
+
+    if (Date.now() >= deadline) break;
+    const waitMs = Math.min(opts.intervalSec * 1000, deadline - Date.now());
+    await sleep(waitMs);
   }
 
-  if (Date.now() >= deadline) break;
-  await sleep(Math.min(options.intervalSec * 1000, deadline - Date.now()));
+  const elapsedMs = Date.now() - startedAt;
+  const detail = liveSha
+    ? `live git_sha=${liveSha} released_at_utc=${releasedAt ?? "unknown"}`
+    : `could not read a live sha${lastError ? ` (${lastError.message})` : ""}`;
+  log(
+    `NOT live: expected git_sha=${opts.sha}, ${detail} (${attempts} attempts, ${(elapsedMs / 1000).toFixed(1)}s)`,
+  );
+
+  if (opts.json) {
+    console.log(
+      JSON.stringify({
+        ok: false,
+        expected_sha: opts.sha,
+        live_sha: liveSha,
+        released_at_utc: releasedAt,
+        url: opts.url,
+        attempts,
+        elapsed_ms: elapsedMs,
+        error: liveSha ? "sha_mismatch" : (lastError?.message ?? "no_marker"),
+      }),
+    );
+  }
+
+  process.exit(EXIT_NOT_LIVE);
 }
 
-console.error(
-  `[verify-deploy] NOT live: expected ${options.sha}, got ${lastLiveSha ?? `no marker${lastError ? ` (${lastError.message})` : ""}`} after ${attempts} attempt(s)`,
-);
-process.exit(1);
+main().catch((error) => {
+  console.error(`[verify-deploy] unexpected error: ${error.stack ?? error.message}`);
+  process.exit(EXIT_NOT_LIVE);
+});
