@@ -1,0 +1,23 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 站点仓库的标准 CI（生成时随模板复制进站点根）。
+# 顺序：安装 → build（按模式跑构建链）→ typecheck（含 src/shared）→ test（shared 边界自检）。
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      # build 按模式跑：spa = vite build + 模式校验；prerender = + 预渲染 + sitemap 覆盖率校验
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test

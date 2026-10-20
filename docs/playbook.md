@@ -36,7 +36,7 @@
 判断句式：
 
 - 「以后可能要支持 X」→ 不做。
-- 「第二个站点也要这段代码」→ 才进 `packages/`。
+- 「第二个站点也要这段代码」→ 才进 `shared/`（复制分发，见 4.2）。
 - 「这个页面文案还没写」→ 先写文案，别先写组件抽象。
 - 「这样更优雅」→ 除非同时更快/更少依赖，否则不做。
 
@@ -160,7 +160,7 @@
 - P0（IA + 占位）：<0.5 天>
 - P1（工具本体）：<x 天>
 - 现金成本：域名 <$x/年>、托管 <$0>、模型/带宽 <$0>
-- 复用：<editor-core / seo-kit / site-template>
+- 复用：<shared/seo / shared/render / template>
 
 ### 协同性
 - 同受众：<是/否，为什么>
@@ -191,27 +191,30 @@
 - 状态：核心逻辑在框架无关模块里，React 只做薄壳；服务端/异步数据走 TanStack Query。
 - 依赖纪律：新增依赖先问「能不能 30 行手写」；能不装就不装。
 
-### 4.2 monorepo 结构
+### 4.2 仓库结构：模板 + 可复制切片
+
+仓库拓扑是**每个站点一个独立仓库**；microtools 只保留「模板 + 共享切片」，不装生产站点。
 
 ```
 microtools/
-├── apps/                  # 每个站点一个目录，独立部署
-├── packages/
-│   ├── editor-core/       # 浏览器端打码/像素化引擎（3 个真实使用方）
-│   ├── seo-kit/           # meta / JSON-LD / sitemap / robots
-│   └── site-template/     # TanStack Router + Vite 双模式脚手架（SPA 默认 / 预渲染可选）
+├── shared/                # 唯一被复制走的东西（VERSION + seo/ + render/ + scripts/）
+├── template/              # 生成器骨架（Vite + TanStack Router/Query + 预渲染 + sitemap 校验 + CI）
+├── bin/create-site.mjs    # 生成站点：复制 template/ + 整棵 shared/ -> src/shared/
 ├── docs/playbook.md       # 本文件
-└── docs/adr/              # 跨项目的架构决策
+└── docs/adr/              # 跨项目的架构决策（共享分发方式见 0003）
 ```
 
 共享层准入规则（对应原则 2）：
 
-- 进 `packages/` 的条件：已有 ≥2 个真实使用方，或成员已批准的明确计划。
-- 共享包不写业务分支：站点差异用配置/组合表达。
-- 改共享包接口前，在 issue 列出全部使用方与影响；破坏性变更要版本化。
-- 站点代码不进共享包；共享包不 import 站点代码。
+- 进 `shared/` 的条件：已有 ≥2 个真实使用方，或成员已批准的明确计划。
+- **共享只走复制**：站点里是 `src/shared/` 源码，不存在 `@microtools/*` 包依赖、workspace 软链、私有 registry。
+- 共享切片不写业务分支：站点差异用配置/组合表达。
+- 改共享切片前，在 issue 列出全部使用方与影响；**任何文件变更都要 bump `shared/VERSION` 并打 tag `v<VERSION>`**。
+- 站点代码不进 `shared/`；`shared/` 不 import 站点代码。
 
-现有站点迁移边界：blurface 仍在自己的仓库部署，`packages/editor-core` 是它的代码抽包结果，接口保持一致；下次重建该站时整体迁入 `apps/`，并在迁移 issue 里核对两处实现无漂移。
+站点跟进版本：`node scripts/sync-shared.mjs --check` → `--to <version>`（同步后自动 build+test，失败回滚）。
+有意分叉的站点在 `src/shared/` 放 `DIVERGED.md`，同步器会跳过/拒绝。协议与实测见
+[`docs/shared-protocol.md`](shared-protocol.md)。
 
 ### 4.3 性能门槛（每页都算）
 
@@ -237,10 +240,13 @@ microtools/
 ### 4.5 新站开工（约 15 分钟到可构建）
 
 ```bash
-pnpm install
-pnpm new-site <app-name> --mode spa|prerender --domain https://<domain> --name "<Brand>"
-pnpm --filter <app-name> dev
-pnpm --filter <app-name> build   # SPA：build + 模式校验；prerender：+ 预渲染 + sitemap 校验
+npm install                                                  # microtools 根：只有 esbuild + typescript
+node bin/create-site.mjs <app-name> --mode spa|prerender --domain https://<domain> --name "<Brand>"
+# 生成到 microtools 同级目录 ../<app-name>（每个站点独立仓库）
+cd ../<app-name> && npm install
+npm run dev
+npm run build            # SPA：build + 模式校验；prerender：+ 预渲染 + sitemap 校验
+node scripts/sync-shared.mjs --check   # 上游 shared 是否有新版本
 ```
 
 生成后立刻要改的四处：`src/lib/site.ts`（域名/品牌）、`src/lib/tool.ts`（title/H1/三步/live）、`src/lib/faq.ts`（3-5 条真实问题）、`src/components/ToolSlot.tsx`（换成真实工具）。
@@ -275,7 +281,7 @@ pnpm --filter <app-name> build   # SPA：build + 模式校验；prerender：+ �
 
 ### 5.4 title / description / canonical
 
-- 每页 title 唯一，主词前置，品牌后缀由 `seo-kit` 统一加（页面用 `{ absolute }` 避免重复后缀）。
+- 每页 title 唯一，主词前置，品牌后缀由 `src/shared/seo` 统一加（页面用 `{ absolute }` 避免重复后缀）。
 - description 写「做什么 + 免费 + 不上传」，不堆词。
 - canonical 指向自身绝对 URL，`SITE_URL` 只有一个真源。
 - OG 图 1200×630，构建期生成，不拉外部字体。
@@ -481,10 +487,10 @@ kill 决定必须由成员拍板（gate 5）；agent 只给建议 + 数据。
 
 - [ ] 机会打分卡 ≥ 8 分，一页纸已发（gate 1）
 - [ ] 域名确定（未购买 → gate 2）
-- [ ] `pnpm new-site --mode spa|prerender` 生成 app（按是否要 SEO 选模式），`src/lib/site.ts` 填域名
+- [ ] `node bin/create-site.mjs <name> --mode spa|prerender` 生成独立站点（按是否要 SEO 选模式），`src/lib/site.ts` 填域名
 - [ ] 词族写进 `src/lib/tool.ts` + `src/lib/faq.ts`（人工写）
 - [ ] P0：nav / 页脚互链 / sitemap / robots / 隐私页，`live: false`
-- [ ] P1：工具本体（优先复用 `editor-core`）
+- [ ] P1：工具本体（优先复用 `src/shared/render`）
 - [ ] 第 6 章验收卡全绿（含 exiftool、Network、Lighthouse、Rich Results）
 - [ ] `live: true` + sitemap + GSC 提交
 - [ ] preview 交付；生产部署走 gate 3

@@ -1,14 +1,22 @@
 {
   "name": "microtools",
+  "version": "1.0.0",
   "private": true,
+  "description": "Template + copyable shared slices for single-purpose tool sites. No publishable packages.",
+  "type": "module",
   "engines": {
     "node": ">=22.12",
     "pnpm": ">=11"
   },
   "scripts": {
-    "build": "pnpm -r run build",
-    "typecheck": "pnpm -r run typecheck",
-    "verify": "pnpm run build && node scripts/verify.mjs",
-    "new-site": "node packages/site-template/bin/create-site.mjs"
+    "create-site": "node bin/create-site.mjs",
+    "build:shared": "node scripts/build-shared.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node scripts/build-shared.mjs && node scripts/verify.mjs && node scripts/verify-create-site.mjs",
+    "verify": "npm test"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3"
   }
 }

@@ -1,9 +1,5 @@
-packages:
-  - "apps/*"
-  - "packages/*"
-  # The site template is a copy source, not an installable workspace package.
-  - "!packages/site-template/template"
-
-# esbuild 需要 postinstall 落平台二进制（Vite 不依赖它，但模板的预渲染脚本用）。
+# 这不是 monorepo workspace：microtools 只剩 template/ + shared/，没有可安装的子包。
+# 保留本文件只为放 pnpm 11 的构建脚本白名单（settings 只从这个文件名读取）。
+# 唯一的依赖是 esbuild（scripts/build-shared.mjs 现场编译 shared/ 切片）。
 allowBuilds:
   esbuild: true
