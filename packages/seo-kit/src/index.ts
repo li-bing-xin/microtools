@@ -17,5 +17,5 @@ export type {
 export { absoluteUrl, fullTitle, buildPageMetadata } from "./metadata.js";
 export { faqPageJsonLd, webApplicationJsonLd, jsonLdGraph } from "./jsonld.js";
 export type { WebApplicationInput } from "./jsonld.js";
-export { buildSitemap, buildRobots, renderSitemapXml } from "./sitemap.js";
-export type { StaticPage, SitemapPage, SitemapInput } from "./sitemap.js";
+export { buildSitemap, buildRobots, renderSitemapXml, renderRobotsTxt } from "./sitemap.js";
+export type { StaticPage, SitemapPage, SitemapInput, RobotsConfig } from "./sitemap.js";

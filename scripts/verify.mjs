@@ -16,6 +16,7 @@ import {
   buildSitemap,
   faqPageJsonLd,
   jsonLdGraph,
+  renderRobotsTxt,
   renderSitemapXml,
   webApplicationJsonLd,
 } from "../packages/seo-kit/dist/index.js";
@@ -89,6 +90,14 @@ check("robots points at the canonical sitemap", () => {
   const robots = buildRobots(site);
   assert.equal(robots.sitemap, "https://example.com/sitemap.xml");
   assert.equal(robots.rules.userAgent, "*");
+});
+
+check("robots.txt serialization keeps the sitemap directive", () => {
+  const txt = renderRobotsTxt(buildRobots(site, { disallow: ["/draft"] }));
+  assert.match(txt, /^User-agent: \*$/m);
+  assert.match(txt, /^Allow: \/$/m);
+  assert.match(txt, /^Disallow: \/draft$/m);
+  assert.match(txt, /^Sitemap: https:\/\/example\.com\/sitemap\.xml$/m);
 });
 
 check("FAQPage mirrors the visible FAQ array", () => {

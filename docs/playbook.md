@@ -185,10 +185,10 @@
 
 ### 4.1 栈
 
-- **Next.js App Router + TypeScript**，全静态（SSG），无服务端运行时。
-- 部署：Vercel（preview 自主，生产需 gate 3）。
-- 样式：手写 CSS / CSS Modules，不引 UI 框架（工具站首屏要轻）。
-- 状态：核心逻辑在框架无关模块里，React 只做薄壳。
+- **TanStack Router + TanStack Query + React + Vite + TypeScript**，构建期预渲染公开路由（`vite build` → SSR bundle → 静态 HTML），无服务端运行时。
+- 部署：Cloudflare Workers Static Assets（`wrangler.jsonc` + `_headers`；preview 自主，生产需 gate 3）。
+- 样式：手写 CSS（模板用原生 CSS），不引 UI 框架（工具站首屏要轻）。
+- 状态：核心逻辑在框架无关模块里，React 只做薄壳；服务端/异步数据走 TanStack Query。
 - 依赖纪律：新增依赖先问「能不能 30 行手写」；能不装就不装。
 
 ### 4.2 monorepo 结构
@@ -199,7 +199,7 @@ microtools/
 ├── packages/
 │   ├── editor-core/       # 浏览器端打码/像素化引擎（3 个真实使用方）
 │   ├── seo-kit/           # meta / JSON-LD / sitemap / robots
-│   └── site-template/     # 新站脚手架（复制即起）
+│   └── site-template/     # TanStack Router + Vite 新站脚手架（复制即起，自带预渲染）
 ├── docs/playbook.md       # 本文件
 └── docs/adr/              # 跨项目的架构决策
 ```
@@ -230,8 +230,8 @@ microtools/
 - **Safari 模糊**：`ctx.filter` 有兼容缺口，必须特性检测 + 降采样回退，不要 UA 嗅探。
 - **模型自托管**：人脸检测模型与 WASM 放 `public/models`，运行时不请求第三方（守住「本地处理」承诺）。
 - **大图保护**：长边 > 4096px 先降采样进编辑器，防移动端内存溢出。
-- **图片直出**：不开 `next/image` 优化器（BING-16/17：Workers 上优化器 500 会全站裂图）。
-- **字体**：用系统字体栈，不用 `next/font/google`（构建期外网依赖 + 隐私噪音）。
+- **图片直出**：静态资源直接用 Vite 产物，不引入运行时图片优化器（BING-16/17 的教训）。
+- **字体**：用系统字体栈，不用构建期外网字体（外网依赖 + 隐私噪音）。
 
 ### 4.5 新站开工（约 15 分钟到可构建）
 
@@ -239,9 +239,10 @@ microtools/
 pnpm install
 pnpm new-site <app-name> --domain https://<domain> --name "<Brand>"
 pnpm --filter <app-name> dev
+pnpm --filter <app-name> build   # build + 预渲染 + sitemap 覆盖率校验
 ```
 
-生成后立刻要改的四处：`lib/site.ts`（域名/品牌）、`lib/tool.ts`（title/H1/三步/live）、`lib/faq.ts`（3-5 条真实问题）、`components/ToolSlot.tsx`（换成真实工具）。
+生成后立刻要改的四处：`src/lib/site.ts`（域名/品牌）、`src/lib/tool.ts`（title/H1/三步/live）、`src/lib/faq.ts`（3-5 条真实问题）、`src/components/ToolSlot.tsx`（换成真实工具）。
 
 ---
 
@@ -368,7 +369,7 @@ npx lighthouse https://<domain>/<path> \
 | 移动端 OOM 崩溃 | 未降采样大图 | 长边 > 4096px 先降采样 |
 | 检测框偏移 | 把显示坐标当自然坐标 | 只存自然坐标，指针处换算 |
 | 页面被索引但没工具 | 先翻 live 后补功能 | live 与工具可用性绑定 |
-| 上线后图片全裂 | 开了 `next/image` 优化器 | 图片直出，优化器关闭 |
+| 上线后图片全裂 | 依赖运行时图片优化器 | 图片静态直出 |
 
 ---
 
@@ -477,8 +478,8 @@ kill 决定必须由成员拍板（gate 5）；agent 只给建议 + 数据。
 
 - [ ] 机会打分卡 ≥ 8 分，一页纸已发（gate 1）
 - [ ] 域名确定（未购买 → gate 2）
-- [ ] `pnpm new-site` 生成 app，`lib/site.ts` 填域名
-- [ ] 词族写进 `lib/tool.ts` + `lib/faq.ts`（人工写）
+- [ ] `pnpm new-site` 生成 app，`src/lib/site.ts` 填域名
+- [ ] 词族写进 `src/lib/tool.ts` + `src/lib/faq.ts`（人工写）
 - [ ] P0：nav / 页脚互链 / sitemap / robots / 隐私页，`live: false`
 - [ ] P1：工具本体（优先复用 `editor-core`）
 - [ ] 第 6 章验收卡全绿（含 exiftool、Network、Lighthouse、Rich Results）
@@ -495,7 +496,7 @@ kill 决定必须由成员拍板（gate 5）；agent 只给建议 + 数据。
 | 先放开索引再补功能 | 空壳页被索引，返工要等重爬 | `live` 与工具可用性绑定 |
 | 用 AI 生成 FAQ 凑条数 | 核心更新打击薄文本，且 schema 与内容易不一致 | 人工写真实长尾问题 |
 | 多站互链 | 站群操纵排名，风险高于收益 | 本站内互链，外链靠内容 |
-| 上 `next/image` 优化器不验证 | Workers 上 500，全站裂图 | 图片直出 |
+| 依赖运行时图片优化器不验证 | Workers 上 500，全站裂图 | 图片静态直出 |
 | 曝光低就改 slug/词族 | 每次改动重置抓取与评估 | 先查收录，再等 8 周读数 |
 
 ---

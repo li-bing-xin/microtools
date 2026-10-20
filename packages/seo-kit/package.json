@@ -17,7 +17,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepare": "pnpm run build"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

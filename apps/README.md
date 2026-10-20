@@ -4,7 +4,8 @@
 
 ## 现状
 
-v1 还没有 app 迁入：blurface.dev 仍由 `li-bing-xin/blurface` 部署（生产切换要过 gate 3，不在初始化范围）。本目录先留空，只放规则。
+- `apps/demo-site`：`pnpm new-site demo-site` 生成的示例站，用来验证模板的 build + 预渲染 + sitemap 校验链路。可留可删（删掉后重跑一次命令即可复现）。
+- blurface.dev 仍由 `li-bing-xin/blurface` 部署（生产切换要过 gate 3，不在初始化范围）。
 
 ## 新站怎么进来
 
@@ -12,6 +13,7 @@ v1 还没有 app 迁入：blurface.dev 仍由 `li-bing-xin/blurface` 部署（�
 pnpm new-site <app-name> --domain https://<domain> --name "<Brand>"
 pnpm install
 pnpm --filter <app-name> dev
+pnpm --filter <app-name> build   # build + 预渲染 + sitemap 覆盖率校验
 ```
 
 ## 规则

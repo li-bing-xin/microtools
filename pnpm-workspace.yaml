@@ -3,3 +3,7 @@ packages:
   - "packages/*"
   # The site template is a copy source, not an installable workspace package.
   - "!packages/site-template/template"
+
+# esbuild 需要 postinstall 落平台二进制（Vite 不依赖它，但模板的预渲染脚本用）。
+allowBuilds:
+  esbuild: true

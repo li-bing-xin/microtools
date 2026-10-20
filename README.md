@@ -9,11 +9,11 @@
 ## 结构
 
 ```
-apps/                 # 每个站点一个目录（当前为空，规则见 apps/README.md）
+apps/                 # 每个站点一个目录（当前有 apps/demo-site 示例，规则见 apps/README.md）
 packages/
   editor-core/        # 浏览器端打码引擎（blur / pixelate / 人脸检测 / 无 EXIF 导出）
   seo-kit/            # meta / JSON-LD / sitemap / robots 单一真源
-  site-template/      # Next.js SSG 新站脚手架 + pnpm new-site
+  site-template/      # TanStack Router + Vite 新站脚手架（构建期预渲染）+ pnpm new-site
 docs/
   playbook.md         # 调研 → 立项 → 开发 → 验收 → 运营 的标准作业程序
   adr/                # 跨项目架构决策（ADR-lite）
@@ -28,6 +28,7 @@ pnpm typecheck          # 所有包 tsc --noEmit
 pnpm build              # 所有包编译到 dist/
 pnpm verify             # build + 契约冒烟校验
 pnpm new-site <name> --domain https://<domain> --name "<Brand>"
+pnpm --filter <name> build   # vite build + 预渲染 + sitemap 覆盖率校验
 ```
 
 ## 边界

@@ -49,17 +49,30 @@ export function buildSitemap(site: SiteConfig, input: SitemapInput): SitemapEntr
   return entries;
 }
 
-/** robots.txt：全站可抓，sitemap 指向规范域名。 */
-export function buildRobots(site: SiteConfig, options?: { disallow?: string[] }): {
+export interface RobotsConfig {
   rules: { userAgent: string; allow: string; disallow?: string[] };
   sitemap: string;
-} {
-  const rules: { userAgent: string; allow: string; disallow?: string[] } = {
+}
+
+/** robots.txt 的结构化描述：全站可抓，sitemap 指向规范域名。 */
+export function buildRobots(site: SiteConfig, options?: { disallow?: string[] }): RobotsConfig {
+  const rules: RobotsConfig["rules"] = {
     userAgent: "*",
     allow: "/",
   };
   if (options?.disallow?.length) rules.disallow = options.disallow;
   return { rules, sitemap: absoluteUrl(site, "/sitemap.xml") };
+}
+
+/**
+ * robots.txt 序列化（不依赖 Next）。Next 的 `robots.ts` 直接 return buildRobots()
+ * 的输出；Vite/静态站由构建脚本调用本函数写文件。
+ */
+export function renderRobotsTxt(robots: RobotsConfig): string {
+  const lines = [`User-agent: ${robots.rules.userAgent}`, `Allow: ${robots.rules.allow}`];
+  for (const path of robots.rules.disallow ?? []) lines.push(`Disallow: ${path}`);
+  lines.push("", `Sitemap: ${robots.sitemap}`, "");
+  return lines.join("\n");
 }
 
 /**

@@ -15,7 +15,7 @@ blurface 上线时踩过的两类事故，这个包在类型层面堵住：
 ```ts
 import {
   buildPageMetadata, faqPageJsonLd, webApplicationJsonLd, jsonLdGraph,
-  buildSitemap, renderSitemapXml, buildRobots,
+  buildSitemap, renderSitemapXml, buildRobots, renderRobotsTxt,
 } from "@microtools/seo-kit";
 
 const site = { url: "https://example.com", name: "Example" };
@@ -33,6 +33,11 @@ export const sitemap = () => buildSitemap(site, {
 });
 ```
 
-## 与 Next 的关系
+## 框架关系
 
-输出结构是 Next App Router `Metadata` / `MetadataRoute.Sitemap` 可接受的值，直接 return 即可，不需要 adapter。若将来换框架，包本身不变，只换薄壳。
+包的输出刻意保持框架无关：
+
+- `buildPageMetadata` 的返回结构是 Next App Router `Metadata` 可接受的值，`buildSitemap` 同 `MetadataRoute.Sitemap`；Next 站点直接 return，不需要 adapter。
+- Vite/TanStack 站点（`packages/site-template`）在构建期调用 `buildPageMetadata` + `renderSitemapXml` / `renderRobotsTxt` 落盘，是「换一层薄壳」的参考实现。
+
+`pnpm install` 会通过 `prepare` 自动执行 `tsc` 产出 `dist/`，workspace 里的站点不需要先手动 build 本包。
