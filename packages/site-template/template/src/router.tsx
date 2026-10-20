@@ -5,6 +5,7 @@ import {
   type RouterHistory,
 } from "@tanstack/react-router";
 import { HomePage } from "@/routes/home";
+import { NotFoundPage } from "@/routes/not-found";
 import { PrivacyPage } from "@/routes/privacy";
 import { RootLayout } from "@/routes/root";
 import { TermsPage } from "@/routes/terms";
@@ -16,7 +17,11 @@ import { site } from "@/lib/site";
  * - 路由数量少的工具站（首页 + 法务页）用不到 file-based 的目录约定。
  * 页面变多、需要按目录自动生成时再迁移，routeTree 的形状不变。
  */
-const rootRoute = createRootRoute({ component: RootLayout });
+const rootRoute = createRootRoute({
+  component: RootLayout,
+  // 客户端兜底；不在 pages.ts 的预渲染清单里，直接访问未知 URL 时由 Workers 返回真 404。
+  notFoundComponent: NotFoundPage,
+});
 
 const homeRoute = createRoute({
   getParentRoute: () => rootRoute,

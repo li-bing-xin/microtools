@@ -4,16 +4,18 @@
 
 ## 现状
 
-- `apps/demo-site`：`pnpm new-site demo-site` 生成的示例站，用来验证模板的 build + 预渲染 + sitemap 校验链路。可留可删（删掉后重跑一次命令即可复现）。
+- `apps/spa-demo`：`--mode spa` 生成的示例站（客户端路由、无 sitemap/预渲染产物、`single-page-application` 回退）。
+- `apps/seo-demo`：`--mode prerender` 生成的示例站（显式清单预渲染 + sitemap 覆盖率校验 + `404-page`）。
+- 两个示例都用于 CI 验证模板的两种构建链，可留可删（删掉后重跑对应命令即可复现）。
 - blurface.dev 仍由 `li-bing-xin/blurface` 部署（生产切换要过 gate 3，不在初始化范围）。
 
 ## 新站怎么进来
 
 ```bash
-pnpm new-site <app-name> --domain https://<domain> --name "<Brand>"
+pnpm new-site <app-name> --mode spa|prerender --domain https://<domain> --name "<Brand>"
 pnpm install
 pnpm --filter <app-name> dev
-pnpm --filter <app-name> build   # build + 预渲染 + sitemap 覆盖率校验
+pnpm --filter <app-name> build   # SPA：build + 模式校验；prerender：+ 预渲染 + sitemap 校验
 ```
 
 ## 规则

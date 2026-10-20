@@ -14,6 +14,15 @@ function normalizeBasePath(pathname: string): string {
   return trimmed === "" ? "/" : `${trimmed}/`;
 }
 
+/**
+ * 渲染模式：
+ * - "spa"（默认）：客户端路由，不做预渲染，也没有 sitemap；用于登录后用户端/后台/纯交互工具。
+ * - "prerender"：src/lib/pages.ts 里的公开路由在构建期落盘成静态 HTML + sitemap。
+ * 预渲染清单是显式列表，不是"所有路由"；未列出的路由留在 SPA 侧（混合模式）。
+ */
+export type RenderMode = "spa" | "prerender";
+export const renderMode: RenderMode = "__RENDER_MODE__";
+
 export const site = {
   url: rawUrl,
   name: "__SITE_NAME__",

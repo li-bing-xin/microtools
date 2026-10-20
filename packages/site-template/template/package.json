@@ -2,14 +2,14 @@
   "name": "__APP_NAME__",
   "version": "0.1.0",
   "private": true,
-  "description": "Single-purpose tool site: TanStack Router + Query + Vite, prerendered at build time.",
+  "description": "Single-purpose tool site: TanStack Router + Query + Vite; rendering mode is chosen at generation time.",
   "type": "module",
   "engines": {
     "node": ">=22.12"
   },
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/write-deploy-marker.mjs && vite build && node scripts/prerender-marketing.mjs && node scripts/write-static-seo-files.mjs && node scripts/verify-prerender-output.mjs && node scripts/verify-sitemap-coverage.mjs",
+    "build": "__BUILD_SCRIPT__",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "deploy": "pnpm dlx wrangler@^4 deploy",

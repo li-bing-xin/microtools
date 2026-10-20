@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { buildPageMetadata, type JsonLd } from "@microtools/seo-kit";
 import type { PageDefinition } from "./pages";
-import { siteConfig } from "./site";
+import { renderMode, siteConfig } from "./site";
 
 /**
  * 页面 head 的单一真源：构建期由 prerender 写进静态 HTML，运行时由 usePageHead
@@ -30,11 +30,14 @@ export function buildHead(page: PageDefinition): HeadData {
     image: null,
   });
 
+  // SPA 模式没有 SEO 诉求：即使页面 live，也统一 noindex，避免 app shell 被索引。
+  const indexable = renderMode === "prerender" && page.live;
+
   return {
     title: meta.title.absolute,
     meta: [
       { name: "description", content: meta.description },
-      { name: "robots", content: page.live ? "index, follow" : "noindex, follow" },
+      { name: "robots", content: indexable ? "index, follow" : "noindex, follow" },
       { property: "og:title", content: meta.openGraph.title },
       { property: "og:description", content: meta.openGraph.description },
       { property: "og:url", content: meta.openGraph.url },

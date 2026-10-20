@@ -20,6 +20,6 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # build 内部跑 vite build + 预渲染 + sitemap 覆盖率校验
+      # build 按模式跑：spa = vite build + 模式校验；prerender = + 预渲染 + sitemap 覆盖率校验
       - run: pnpm -r build
       - run: pnpm -r typecheck

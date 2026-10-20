@@ -185,7 +185,7 @@
 
 ### 4.1 栈
 
-- **TanStack Router + TanStack Query + React + Vite + TypeScript**，构建期预渲染公开路由（`vite build` → SSR bundle → 静态 HTML），无服务端运行时。
+- **TanStack Router + TanStack Query + React + Vite + TypeScript**。渲染形态按内容是否需要 SEO 决定：默认 SPA（客户端路由、无预渲染）；需要收录的公开页在构建期预渲染（`vite build` → SSR bundle → 静态 HTML）。同站允许混合，预渲染清单是显式路由列表，不是「所有路由」。
 - 部署：Cloudflare Workers Static Assets（`wrangler.jsonc` + `_headers`；preview 自主，生产需 gate 3）。
 - 样式：手写 CSS（模板用原生 CSS），不引 UI 框架（工具站首屏要轻）。
 - 状态：核心逻辑在框架无关模块里，React 只做薄壳；服务端/异步数据走 TanStack Query。
@@ -199,7 +199,7 @@ microtools/
 ├── packages/
 │   ├── editor-core/       # 浏览器端打码/像素化引擎（3 个真实使用方）
 │   ├── seo-kit/           # meta / JSON-LD / sitemap / robots
-│   └── site-template/     # TanStack Router + Vite 新站脚手架（复制即起，自带预渲染）
+│   └── site-template/     # TanStack Router + Vite 双模式脚手架（SPA 默认 / 预渲染可选）
 ├── docs/playbook.md       # 本文件
 └── docs/adr/              # 跨项目的架构决策
 ```
@@ -232,14 +232,15 @@ microtools/
 - **大图保护**：长边 > 4096px 先降采样进编辑器，防移动端内存溢出。
 - **图片直出**：静态资源直接用 Vite 产物，不引入运行时图片优化器（BING-16/17 的教训）。
 - **字体**：用系统字体栈，不用构建期外网字体（外网依赖 + 隐私噪音）。
+- **软 404 红线**：预渲染站必须用 `not_found_handling: "404-page"`；`single-page-application` 只属于 SPA 模式。模板的 `verify-render-mode.mjs` 会在构建时拦截配错。
 
 ### 4.5 新站开工（约 15 分钟到可构建）
 
 ```bash
 pnpm install
-pnpm new-site <app-name> --domain https://<domain> --name "<Brand>"
+pnpm new-site <app-name> --mode spa|prerender --domain https://<domain> --name "<Brand>"
 pnpm --filter <app-name> dev
-pnpm --filter <app-name> build   # build + 预渲染 + sitemap 覆盖率校验
+pnpm --filter <app-name> build   # SPA：build + 模式校验；prerender：+ 预渲染 + sitemap 校验
 ```
 
 生成后立刻要改的四处：`src/lib/site.ts`（域名/品牌）、`src/lib/tool.ts`（title/H1/三步/live）、`src/lib/faq.ts`（3-5 条真实问题）、`src/components/ToolSlot.tsx`（换成真实工具）。
@@ -247,6 +248,8 @@ pnpm --filter <app-name> build   # build + 预渲染 + sitemap 覆盖率校验
 ---
 
 ## 5. SEO 页面标准
+
+> 本节只约束**预渲染模式**的公开页。登录后用户端、后台、纯交互界面按 SPA 模式做，不要求这些 SEO 结构。
 
 ### 5.1 页面结构（从上到下）
 
@@ -478,7 +481,7 @@ kill 决定必须由成员拍板（gate 5）；agent 只给建议 + 数据。
 
 - [ ] 机会打分卡 ≥ 8 分，一页纸已发（gate 1）
 - [ ] 域名确定（未购买 → gate 2）
-- [ ] `pnpm new-site` 生成 app，`src/lib/site.ts` 填域名
+- [ ] `pnpm new-site --mode spa|prerender` 生成 app（按是否要 SEO 选模式），`src/lib/site.ts` 填域名
 - [ ] 词族写进 `src/lib/tool.ts` + `src/lib/faq.ts`（人工写）
 - [ ] P0：nav / 页脚互链 / sitemap / robots / 隐私页，`live: false`
 - [ ] P1：工具本体（优先复用 `editor-core`）

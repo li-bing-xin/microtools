@@ -2,10 +2,12 @@
 /**
  * 新站脚手架：把 packages/site-template/template 复制成 apps/<name> 并替换占位符。
  *
- *   node packages/site-template/bin/create-site.mjs pixelate
+ *   node packages/site-template/bin/create-site.mjs pixelate                    # SPA（默认）
+ *   node packages/site-template/bin/create-site.mjs pixelate --mode prerender    # 需要收录的站点
  *   node packages/site-template/bin/create-site.mjs pixelate --domain https://pixelate.app --name "Pixelate"
  *
  * 只做复制 + 文本替换，不装依赖、不建 git 仓库、不动部署。
+ * --mode：spa（默认，客户端路由、无 sitemap）或 prerender（显式清单构建期预渲染）。
  * --domain 省略时用 https://<name>.example.com 占位，上线前必须改；
  * --name 省略时由目录名推导（pixelate -> Pixelate）。
  */
@@ -23,7 +25,7 @@ const TEXT_EXT = /\.(tsx?|m?js|jsonc?|css|md|html|ya?ml|txt)$|(^|\/)\.gitignore$
 function usage(message) {
   if (message) console.error(`\n  ${message}\n`);
   console.error(
-    '  Usage: pnpm new-site <app-name> [--domain https://example.com] [--name "Example Tools"]\n',
+    '  Usage: pnpm new-site <app-name> [--mode spa|prerender] [--domain https://example.com] [--name "Example Tools"]\n',
   );
   process.exit(1);
 }
@@ -59,6 +61,35 @@ const appName = positional[0];
 if (!appName) usage();
 if (!/^[a-z][a-z0-9-]*$/.test(appName)) usage(`App name must be kebab-case: got "${appName}"`);
 
+const mode = flags.mode ?? "spa";
+if (mode !== "spa" && mode !== "prerender") {
+  usage(`--mode must be "spa" or "prerender": got "${mode}"`);
+}
+
+// 两种模式的构建链不同：SPA 不跑预渲染/sitemap；prerender 跑完整 SEO 链。
+const BUILD_SCRIPTS = {
+  spa: [
+    "node scripts/write-deploy-marker.mjs",
+    "vite build",
+    "node scripts/relocate-base-path.mjs",
+    "node scripts/verify-render-mode.mjs",
+  ].join(" && "),
+  prerender: [
+    "node scripts/write-deploy-marker.mjs",
+    "vite build",
+    "node scripts/prerender-marketing.mjs",
+    "node scripts/write-static-seo-files.mjs",
+    "node scripts/verify-prerender-output.mjs",
+    "node scripts/verify-sitemap-coverage.mjs",
+    "node scripts/verify-render-mode.mjs",
+  ].join(" && "),
+};
+
+const NOT_FOUND_HANDLING = {
+  spa: "single-page-application",
+  prerender: "404-page",
+};
+
 const domain = flags.domain ?? `https://${appName}.example.com`;
 const siteName = flags.name ?? titleCase(appName);
 
@@ -90,6 +121,9 @@ const replacements = {
   __APP_NAME__: appName,
   __SITE_NAME__: siteName,
   __SITE_URL__: domain,
+  __RENDER_MODE__: mode,
+  __BUILD_SCRIPT__: BUILD_SCRIPTS[mode],
+  __NOT_FOUND_HANDLING__: NOT_FOUND_HANDLING[mode],
 };
 
 function rewrite(dir) {
@@ -114,15 +148,24 @@ function rewrite(dir) {
 
 rewrite(target);
 
+const buildNote =
+  mode === "prerender"
+    ? "vite build -> prerender -> sitemap coverage -> render-mode guard"
+    : "vite build -> base-path relocation -> render-mode guard (no sitemap)";
+
 console.log(`
-  Created apps/${appName}  (${domain})
+  Created apps/${appName}  (mode: ${mode}, ${domain})
 
   Next:
     1. pnpm install
     2. Set the real domain in src/lib/site.ts${flags.domain ? "" : "  <- placeholder for now"}
     3. Rewrite src/lib/tool.ts + src/lib/faq.ts by hand (no AI filler text)
-    4. Replace src/components/ToolSlot.tsx with the real editor
-    5. Flip live: true in src/lib/tool.ts only when the tool actually works
+    4. Replace src/components/ToolSlot.tsx with the real editor${
+      mode === "prerender"
+        ? "\n    5. Add each indexable route to src/lib/pages.ts (this is the prerender list)"
+        : "\n    5. SPA mode: no sitemap/prerender; keep pages.ts only for head metadata"
+    }
     6. pnpm --filter ${appName} dev
-    7. pnpm --filter ${appName} build   # vite build -> prerender -> sitemap coverage
+    7. pnpm --filter ${appName} build   # ${buildNote}
 `);
+

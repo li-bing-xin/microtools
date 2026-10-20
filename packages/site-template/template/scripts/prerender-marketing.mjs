@@ -11,8 +11,9 @@
  *
  * 不做运行时 SSR：产物就是静态文件，Workers Static Assets 直接托管。
  */
-import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { relocateForBasePath } from "./lib/base-path.mjs";
 import { distDir, displayPath, outputRoot } from "./lib/paths.mjs";
 import { loadSsrBundle } from "./lib/ssr-bundle.mjs";
 
@@ -44,37 +45,6 @@ ${assetTags.map((tag) => `    ${tag}`).join("\n")}
 `;
 }
 
-/**
- * 子路径部署时，Vite 仍然把 assets/ 写在 dist/web 根，但 HTML 引用的是 /<base>/assets/*。
- * 把资源和 public 文件搬进子目录，并删掉根上的 index.html/assets，避免根路径出现重复内容。
- * _headers / _redirects 是 Workers 的约定文件，必须留在 assets 目录根部。
- */
-async function relocateForBasePath(basePath, baseDir) {
-  if (basePath === "/") return;
-
-  await cp(join(distDir, "assets"), join(baseDir, "assets"), { recursive: true });
-
-  const entries = await readdir(distDir, { withFileTypes: true });
-  const keepAtRoot = new Set(["_headers", "_redirects", "assets", "index.html"]);
-
-  for (const entry of entries) {
-    if (keepAtRoot.has(entry.name)) continue;
-    const from = join(distDir, entry.name);
-    if (resolve(from) === resolve(baseDir)) continue; // 子路径目录自己
-    await cp(from, join(baseDir, entry.name), { recursive: true });
-    await rm(from, { recursive: true, force: true });
-  }
-
-  await rm(join(distDir, "assets"), { recursive: true, force: true });
-  await rm(join(distDir, "index.html"), { force: true });
-
-  // _headers 里的 /assets/* 在子路径下也要跟着改，否则静态资源拿不到 immutable 缓存。
-  const headersFile = join(distDir, "_headers");
-  const headers = await readFile(headersFile, "utf8");
-  const prefix = basePath.replace(/\/$/, "");
-  await writeFile(headersFile, headers.replace(/^\/assets\/\*/m, `${prefix}/assets/*`), "utf8");
-}
-
 const bundle = await loadSsrBundle();
 const manifest = bundle.getPrerenderManifest();
 const outRoot = outputRoot(manifest.site.basePath);
@@ -102,7 +72,14 @@ for (const page of manifest.pages) {
   console.log(`  prerendered ${page.path} -> ${displayPath(file)}`);
 }
 
-await relocateForBasePath(manifest.site.basePath, outRoot);
+const moved = await relocateForBasePath({
+  basePath: manifest.site.basePath,
+  outRoot,
+  keepIndexHtml: false,
+});
+if (moved) {
+  console.log(`  relocated bundled assets into ${displayPath(outRoot)} (base ${manifest.site.basePath})`);
+}
 console.log(
   `\n  ${manifest.pages.length} route(s) prerendered into ${displayPath(outRoot)} (base ${manifest.site.basePath})`,
 );
