@@ -190,6 +190,18 @@ function sliceImpact(sharedFiles) {
   return [...hits];
 }
 
+/**
+ * 报告结论分流（优先级从高到低）：有落后 > 有无法判定 > 0 消费方 > 全部最新。
+ * 「0 消费方」是空扫描，不得与「共享层全部最新」混为一谈——否则 token 失效或
+ * owner 改名把扫描面清零时，报告会长得一模一样（BING-48 复审意见）。
+ */
+function computeVerdict(summary, consumerCount) {
+  if (summary.behind > 0) return "has-behind";
+  if (summary.unknown > 0) return "has-unknown";
+  if (consumerCount === 0) return "no-consumers";
+  return "all-clear";
+}
+
 function buildTicket({ repo, branch, current, latest, upstreamUrl, upstreamSlug, log }) {
   const title = `${repo} 共享层落后：v${current} → v${latest}`;
   const lines = [];
@@ -269,13 +281,15 @@ function humanReport(report) {
   lines.push(
     `汇总：落后 ${report.summary.behind} · 有意分叉 ${report.summary.diverged} · 无法判定 ${report.summary.unknown} · 最新 ${report.summary.ok} · 超前 ${report.summary.ahead}；建议开单 ${report.tickets.length} 张`,
   );
-  if (report.summary.behind === 0 && report.summary.unknown === 0) {
+  if (report.summary.behind > 0) {
+    lines.push("结论：存在落后站点 —— 按建议工单开单（每站每版本一张；查重判据=标题全等的开放单）。");
+  } else if (report.summary.unknown > 0) {
+    lines.push("结论：无落后站点，但有无法判定的仓库 —— 人工确认后处置，不得默认为最新。");
+  } else if (report.consumers.length === 0) {
+    lines.push("结论：扫描面 0 消费方（尚无站点接入 shared 协议）—— 空扫描≠「全部最新」，同样只在状态板留一行，不开单。");
+  } else {
     const latest = report.consumers.find((c) => c.status === "ok")?.latest ?? report.referenceLatest;
     lines.push(`结论：共享层全部最新（v${latest ?? "?"}）—— 只在状态板记一行，不开单。`);
-  } else if (report.summary.behind === 0) {
-    lines.push("结论：无落后站点，但有无法判定的仓库 —— 人工确认后处置，不得默认为最新。");
-  } else {
-    lines.push("结论：存在落后站点 —— 按建议工单开单（每站每版本一张，先查重）。");
   }
   return lines.join("\n");
 }
@@ -331,6 +345,10 @@ function selfTest() {
       "1.0.0",
     ) && pass;
   pass = assert("切片归纳", sliceImpact(["shared/seo/sitemap.ts", "shared/render/effects.ts", "bin/other.ts"]), ["seo", "render"]) && pass;
+  pass = assert("verdict：落后优先", computeVerdict({ behind: 1, unknown: 1, diverged: 0, ok: 0, ahead: 0 }, 2), "has-behind") && pass;
+  pass = assert("verdict：只无法判定", computeVerdict({ behind: 0, unknown: 2, diverged: 0, ok: 0, ahead: 0 }, 1), "has-unknown") && pass;
+  pass = assert("verdict：0 消费方 ≠ 全部最新", computeVerdict({ behind: 0, unknown: 0, diverged: 0, ok: 0, ahead: 0 }, 0), "no-consumers") && pass;
+  pass = assert("verdict：全清", computeVerdict({ behind: 0, unknown: 0, diverged: 0, ok: 1, ahead: 0 }, 1), "all-clear") && pass;
   const ticket = buildTicket({
     repo: "fixture",
     branch: "main",
@@ -480,6 +498,7 @@ async function main() {
     owner: flags.owner,
     scanned,
     referenceLatest,
+    verdict: computeVerdict(summary, consumers.length),
     consumers,
     summary,
     tickets,
