@@ -87,11 +87,21 @@ export function renderSitemapXml(entries: SitemapEntry[]): string {
         parts.push(`    <lastmod>${d.toISOString().slice(0, 10)}</lastmod>`);
       }
       if (entry.changeFrequency) parts.push(`    <changefreq>${entry.changeFrequency}</changefreq>`);
-      if (entry.priority !== undefined) parts.push(`    <priority>${entry.priority.toFixed(1)}</priority>`);
+      if (entry.priority !== undefined) parts.push(`    <priority>${formatPriority(entry.priority)}</priority>`);
       return `  <url>\n${parts.join("\n")}\n  </url>`;
     })
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
+}
+
+/**
+ * sitemap 的 priority 保留最多两位小数、去掉尾随 0。
+ *
+ * 之前用 `toFixed(1)`：0.65 变成 0.7、1 变成 1.0 —— 迁移对照里这就是差异（Next 版输出
+ * 0.65 / 1 / 0.3）。priority 本身是提示，但"迁移不改值"比"看起来差不多"更省事。
+ */
+function formatPriority(priority: number): string {
+  return String(Number(priority.toFixed(2)));
 }
 
 function escapeXml(value: string): string {

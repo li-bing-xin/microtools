@@ -90,6 +90,14 @@ check("sitemap includes only live pages, static pages always", () => {
   assert.deepEqual(urls, ["https://example.com/privacy", "https://example.com/live-tool"]);
   const xml = renderSitemapXml(entries);
   assert.match(xml, /<loc>https:\/\/example\.com\/live-tool<\/loc>/);
+  // priority 保留两位精度、不补零（0.3 不能变 0.3 以外的形态，0.65 不能四舍五入成 0.7）
+  assert.match(xml, /<priority>0\.3<\/priority>/);
+  assert.match(
+    renderSitemapXml(
+      buildSitemap(site, { staticPages: [{ path: "/x", priority: 0.65 }] }),
+    ),
+    /<priority>0\.65<\/priority>/,
+  );
   assert.doesNotMatch(xml, /draft-tool/);
   assert.match(xml, /<lastmod>2026-10-19<\/lastmod>/);
 });
