@@ -1,11 +1,12 @@
 node_modules/
 dist/
-.wrangler/
 *.tsbuildinfo
 .DS_Store
 .env
 .env.*
 !.env.example
+.print-fit/
+.print-fit-profile-*/
 
 # 构建期生成，内容含当前 git sha；不入库。
 public/deploy-marker.txt

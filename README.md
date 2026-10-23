@@ -13,6 +13,9 @@ shared/                  # 唯一被复制走的东西（VERSION + seo/ + render
   render/                # 打码引擎内核：effects（Safari 降级）/ coords（MAX_EDGE）/ engine / face-detect 契约
   scripts/               # 资源同步、ffmpeg core 搬 R2、ORT 压缩、deploy-marker、sync-shared
 template/                # 生成器骨架：Vite + TanStack Router/Query + 预渲染 + sitemap 校验 + CI
+                         # 部署形态 = cf（cloudflare.config.ts + cf deploy + CI deploy job），
+                         # 不带任何 wrangler 配置（2026-10-20 拍板；BING-89 B1）
+                         # 内置可关的打印层 / link-graph / rng 生成器约定 / print-fit harness（B2）
 bin/create-site.mjs      # 生成站点：复制 template/ + 整棵 shared/ -> src/shared/
 packages/README.md       # 旧 packages/ 的指针（目录已删）
 docs/

@@ -12,7 +12,7 @@ TanStack Router + TanStack Query + React + Vite 的单用途站点。**渲染模
 | `not_found_handling` | `single-page-application` | `404-page`（未知路径真 404） |
 | sitemap | 无 | 构建期生成 + 双向覆盖率校验 |
 
-**红线**：预渲染站绝不能配 `single-page-application`——那会让任意 URL 返回 200，变成软 404。`scripts/verify-render-mode.mjs` 在每次构建的最后一步校验模式与 `wrangler.jsonc` 一致，配错直接非零退出。
+**红线**：预渲染站绝不能配 `single-page-application`——那会让任意 URL 返回 200，变成软 404。`scripts/verify-render-mode.mjs` 在每次构建的最后一步校验模式与 `cloudflare.config.ts` 一致，配错直接非零退出。
 
 ```bash
 # 在 microtools 仓库里生成（默认落到同级目录 ../my-app，每个站点独立成仓）
@@ -31,10 +31,12 @@ npm run dev           # Vite dev server
 npm run build         # 按模式跑构建链（见下）
 npm run preview       # vite preview
 npm run typecheck     # tsc --noEmit（覆盖 src/shared/）
-npm test              # shared 边界自检：VERSION / 切片入口 / 无 @microtools/* 导入
+npm test              # shared 边界自检 + rng 冒烟（VERSION / 切片入口 / 无 @microtools/* 导入）
 npm run sync:check    # 上游 shared 是否有新版本
-npm run deploy        # pnpm dlx wrangler@^4 deploy（先 build）
+npm run deploy        # cf deploy（自己跑完整构建链，不用先 build）
+npm run deploy:dry-run
 npm run verify:deploy -- <sha> --url https://<domain>/deploy-marker.txt
+node scripts/verify-print-fit.mjs   # 打印实测（要本机 Chrome；见下）
 ```
 
 构建链（`package.json` 的 `build` 由 create-site 按模式写入）：
@@ -60,6 +62,32 @@ node scripts/sync-shared.mjs --to 1.1.0 --dry-run   # 只看将变更的文件
 - **站内不要手改 `src/shared/`**：要改回 microtools 改、打 tag `v<VERSION>`、再同步。
 - 有意分叉：放 `src/shared/DIVERGED.md` 写明原因与归并计划；`--check` 会跳过，`--to` 会拒绝。
 - 协议全文：microtools 的 `docs/shared-protocol.md`。
+
+## 站内链接单一真源：`src/lib/link-graph.ts`
+
+页脚 / 顶部导航的链接都从 `TOOL_LINKS` 取（`tool.ts` 的 `navLabel`）。长出第二个、第三个工具页时
+把路径加进 `link-graph.ts` 的清单，导航和页脚自动出现——不会出现「发了新页但全站没有入口」的孤岛。
+`ALL_SITE_PATHS` / `isSitePath` 给链接渲染做兜底校验。（约定自 printable-studio 回灌，BING-89 B2。）
+
+## 生成器约定（要做"生成器"类工具时照这份来）
+
+- **确定性随机**：所有题面/布局生成共用 `src/lib/rng.ts`（mulberry32 + `deriveSeed` 盐派生 +
+  不改入参的 `shuffled`）。同一 seed 永远得到同一结果——预渲染与 hydration 都靠这一点。
+  生成器禁止用 `Math.random`（用 `nextSeed()` 那样的入口抽一次 seed 再派生）。
+- **独立校验**：每个生成器配一个 `verify*` 纯函数（如 `verifyPuzzle`），重算合法性，
+  测试与答案页共用——不让生成逻辑自己说自己对。
+- **显式降级**：出不了就明说（`wordsShort` / `unplaced` 带原因），UI 必须提示，不静默吞。
+- `tests/rng.test.ts` 是共享 PRNG 的冒烟；每个生成器再加自己的测试文件。
+- 接了打印输出的生成器，`scripts/verify-print-fit.mjs` 必须加 target：默认档 + worst-case 档
+  （单页截断高发在极端合法配置；参考 printable-studio 的三组 worst-case）。
+
+## 打印层（`PrintDocument` + `print.css`）
+
+`src/components/PrintDocument.tsx` + `src/styles/print.css` 提供「题面 + 答案分离」的两页式打印：
+页面里渲染 `<PrintDocument paper={paper}>`，每个打印页一个 `<article className="sheet">`，
+答案页加 `.sheet--answers` 独立成页；`PrintFoot` 的站址从 `site.url` 推导，换域名不用改组件。
+不需要打印输出的站，`create-site.mjs --print off` 生成时不带这套。
+第二个消费方出现时按 BING-47 协议收进 `shared/` 打 tag。
 
 ## 路由：code-based
 
@@ -107,8 +135,8 @@ rm dist/web/index.html && node scripts/verify-sitemap-coverage.mjs
 sed -i '' 's#</urlset>#  <url><loc>https://<domain>/nope</loc></url>\n</urlset>#' dist/web/sitemap.xml
 node scripts/verify-sitemap-coverage.mjs
 
-# 软 404 红线：把 prerender 站的 wrangler 改成 SPA 回退
-sed -i '' 's/"404-page"/"single-page-application"/' wrangler.jsonc
+# 软 404 红线：把 prerender 站的 notFoundHandling 改成 SPA 回退
+sed -i '' 's/"404-page"/"single-page-application"/' cloudflare.config.ts
 node scripts/verify-render-mode.mjs
 ```
 
@@ -129,18 +157,31 @@ const rawUrl = "https://example.com/tools";
 
 根域部署保持 `https://example.com` 即可。
 
-## 部署
+## 部署（cf 形态）
+
+部署一律走 `cf`（2026-10-20 拍板，仓库里不保留、也不新增其他部署工具链）：
+`cloudflare.config.ts` 由 `cf deploy` 读取，纯静态资产站（没有 Worker 入口），
+`dist/web` 作为 Workers Static Assets 上传，`notFoundHandling` 由模式决定（见上）。
 
 ```bash
-npm run build
-npm run deploy            # pnpm dlx wrangler@^4 deploy
+npm run deploy:dry-run    # 先预览：构建 + 检查，不上传
+npm run deploy            # cf deploy（自己跑完整构建链）
 ```
 
-> **已知欠账**：部署链路仍是 `wrangler.jsonc` + `wrangler`（模板从 BING-38 继承下来），
-> 而 2026-10-20 成员拍板要求 Cloudflare 一律用 `cf`。**本模板尚未迁移**，新站上线前不要在
-> 这里新增 wrangler 用法；迁移单待开（`cf migrate --dry-run` → `cloudflare.config.ts` → 删 wrangler 依赖）。
+首次部署 checklist（create-site 生成时也会打印一份）：
 
-`wrangler.jsonc` 的 `not_found_handling` 由模式决定（见上）。`pnpm preview` 对无尾斜杠路径会做 Vite 的 SPA 回退：在 prerender 模式下看静态页请用 `/privacy/`，线上由 Workers 的 `auto-trailing-slash` 处理两种写法。
+1. **凭据**：`CLOUDFLARE_API_TOKEN` 放 GitHub Secrets（`cf auth login` 是交互式 OAuth，CI 跑不通）；
+   本机 `export CLOUDFLARE_API_TOKEN=$(cat <token 文件路径>)`，只引用路径，不要把值写进任何地方。
+2. **账号 ID**：生成时给了 `--account-id` 就已写进 `.github/workflows/ci.yml`；
+   没给则在仓库变量里配 `vars.CLOUDFLARE_ACCOUNT_ID`。
+3. **Worker 名**：`cloudflare.config.ts` 的 `worker.name`（create-site 按 `--name` 写入）。
+4. **域名**：先改 `src/lib/site.ts` 的 `site.url`；自定义域 / route 是 playbook gate 3，先拍板再绑。
+5. `npm run deploy:dry-run` → `npm run deploy` → `node scripts/verify-deploy.mjs <sha> --url <domain>/deploy-marker.txt`。
+6. 有 secret 要配：`cf deploy --secrets-file <path>`（cf 暂不支持单条 secret 写入）。
+
+CI 的 deploy job（main push 时）= 上面的 2/3/5 自动化：`cf deploy` → verify-deploy 校验 deploy-marker 的 sha。
+
+`npm run preview` 对无尾斜杠路径会做 Vite 的 SPA 回退：在 prerender 模式下看静态页请用 `/privacy/`，线上由 Workers 的 `auto-trailing-slash` 处理两种写法。
 
 上线判定：
 

@@ -11,6 +11,8 @@ export interface ToolPage {
   title: string;
   description: string;
   h1: string;
+  /** 导航 / 页脚里的短标签（link-graph.ts 的 TOOL_LINKS 用它，不用长 h1）。 */
+  navLabel: string;
   /** 一句话卖点，用于首屏副标题与卡片。 */
   tagline: string;
   /**
@@ -28,6 +30,7 @@ export const tool: ToolPage = {
   description:
     "One sentence: what the tool does, that it is free, has no watermark, and never uploads the file.",
   h1: "Do the Job Online — Free & No Upload",
+  navLabel: "Main tool",
   tagline: "Processed locally in your browser — nothing is uploaded.",
   live: false,
   steps: [
