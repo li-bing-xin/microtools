@@ -186,7 +186,7 @@
 ### 4.1 栈
 
 - **TanStack Router + TanStack Query + React + Vite + TypeScript**。渲染形态按内容是否需要 SEO 决定：默认 SPA（客户端路由、无预渲染）；需要收录的公开页在构建期预渲染（`vite build` → SSR bundle → 静态 HTML）。同站允许混合，预渲染清单是显式路由列表，不是「所有路由」。
-- 部署：Cloudflare Workers Static Assets（`wrangler.jsonc` + `_headers`；preview 自主，生产需 gate 3）。
+- 部署：Cloudflare Workers Static Assets（`cloudflare.config.ts` + `cf deploy` + `_headers`；preview 自主，生产需 gate 3；2026-10-20 拍板 cf-only）。
 - 样式：手写 CSS（模板用原生 CSS），不引 UI 框架（工具站首屏要轻）。
 - 状态：核心逻辑在框架无关模块里，React 只做薄壳；服务端/异步数据走 TanStack Query。
 - 依赖纪律：新增依赖先问「能不能 30 行手写」；能不装就不装。

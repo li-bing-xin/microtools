@@ -1,3 +1,6 @@
+/* 打印层是独立文件（create-site --print off 会整块移除）；@import 必须在最前。 */
+@import "./print.css";
+
 /*
  * 原生 CSS，不用 CSS Modules：SSR 由 esbuild 打包，CSS Modules 的 hash 类名在
  * esbuild 与 Vite 两侧不一致，会让静态 HTML 和 hydration 后的类名漂移。

@@ -1,0 +1,90 @@
+/*
+ * 打印层（BING-89 B2 自 printable-studio 回灌）：「题面 + 答案分离」的两页式打印。
+ *
+ * 用法：页面里渲染 <PrintDocument paper={paper}>…</PrintDocument>，每个打印页是一个
+ * <article className="sheet">（答案页再加 .sheet--answers），打印时 #root 隐藏、
+ * 只剩 .print-root 里的 sheet 序列。机制细节见 src/components/PrintDocument.tsx。
+ * 生成器自己的布局类（网格 / 词表 / 线索列）写在各自的组件旁，不进这份基础文件。
+ */
+
+.print-root {
+  display: none;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    color: #000;
+    font-size: 10.5pt;
+  }
+
+  #root,
+  .skip-link {
+    display: none !important;
+  }
+
+  .print-root {
+    display: block !important;
+  }
+
+  .sheet {
+    width: 100%;
+    margin: 0;
+    color: #000;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .sheet--answers {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .sheet__head {
+    border-bottom: 2pt solid #000;
+    padding-bottom: 3mm;
+  }
+
+  .sheet__kicker {
+    margin: 0 0 1mm;
+    font-size: 8pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #444;
+  }
+
+  .sheet__title {
+    margin: 0 0 1.5mm;
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-size: 21pt;
+    line-height: 1.1;
+    text-transform: capitalize;
+  }
+
+  .sheet__instructions {
+    margin: 0 0 1.5mm;
+    font-size: 9.5pt;
+    color: #222;
+  }
+
+  .sheet__fields {
+    margin: 0;
+    font-size: 9pt;
+    color: #333;
+    letter-spacing: 0.02em;
+  }
+
+  .sheet__foot {
+    margin: 3mm 0 0;
+    font-size: 7.5pt;
+    color: #666;
+    text-align: center;
+  }
+}

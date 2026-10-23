@@ -3,8 +3,8 @@
  * 渲染模式一致性校验（构建链最后一步，两种模式都跑）。
  *
  * 这是 BING-38 修订版里「软 404 红线」的自动拦截点：
- * - spa 模式：wrangler 必须是 single-page-application；产物只能有 index.html，不能有 sitemap/预渲染页；
- * - prerender 模式：wrangler 必须是 404-page；sitemap 必须存在；产物里的每个 index.html
+ * - spa 模式：cloudflare.config.ts 必须是 single-page-application；产物只能有 index.html，不能有 sitemap/预渲染页；
+ * - prerender 模式：cloudflare.config.ts 必须是 404-page；sitemap 必须存在；产物里的每个 index.html
  *   都必须在 pages.ts 的显式清单里（不能悄悄全站预渲染）。
  *
  * 把 single-page-application 配到 prerender 站点上 → 本脚本非零退出。
@@ -52,8 +52,8 @@ async function listIndexHtml(dir) {
 
 const { site, renderMode } = await loadSiteConfig();
 const outRoot = outputRoot(site.basePath);
-const wrangler = await readFile(join(appRoot, "wrangler.jsonc"), "utf8");
-const handling = /"not_found_handling"\s*:\s*"([^"]+)"/.exec(wrangler)?.[1];
+const cloudflareConfig = await readFile(join(appRoot, "cloudflare.config.ts"), "utf8");
+const handling = /notFoundHandling\s*:\s*"([^"]+)"/.exec(cloudflareConfig)?.[1];
 
 console.log(`render mode verification — ${renderMode} (base ${site.basePath})\n`);
 
@@ -62,7 +62,7 @@ check(
   renderMode === "spa" || renderMode === "prerender",
   `got "${renderMode}"`,
 );
-check("wrangler has not_found_handling", Boolean(handling));
+check("cloudflare.config.ts has notFoundHandling", Boolean(handling));
 
 if (renderMode === "spa") {
   check(

@@ -4,8 +4,17 @@ import { fileURLToPath } from "node:url";
 /** scripts/ 在站点根下，向上两级就是站点根。 */
 export const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
-/** vite build 的产物目录。 */
-export const distDir = join(appRoot, "dist/web");
+/**
+ * vite build 的产物目录。
+ *
+ * 默认 dist/web；`cf deploy` 走 @cloudflare/vite-plugin 时，Vite 把客户端产物
+ * 直接写进 Build Output（.cloudflare/output/v0/workers/<name>/assets），
+ * 由 scripts/vite-plugin-postbuild.mjs 通过 SITE_DIST_DIR 传进来。
+ * 两种入口因此跑同一份预渲染/校验脚本。
+ */
+export const distDir = process.env.SITE_DIST_DIR
+  ? resolve(process.env.SITE_DIST_DIR)
+  : join(appRoot, "dist/web");
 
 /**
  * 真实发布的目录：basePath 为 "/" 时就是 dist/web；
