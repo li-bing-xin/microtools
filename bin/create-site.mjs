@@ -99,25 +99,8 @@ if (accountId && !/^[0-9a-f]{32}$/.test(accountId)) {
   usage(`--account-id must be 32 hex chars: got "${accountId}"`);
 }
 
-// 两种模式的构建链不同：SPA 不跑预渲染/sitemap；prerender 跑完整 SEO 链。
-const BUILD_SCRIPTS = {
-  spa: [
-    "node src/shared/scripts/write-deploy-marker.mjs",
-    "vite build",
-    "node scripts/relocate-base-path.mjs",
-    "node scripts/verify-render-mode.mjs",
-  ].join(" && "),
-  prerender: [
-    "node src/shared/scripts/write-deploy-marker.mjs",
-    "vite build",
-    "node scripts/prerender-marketing.mjs",
-    "node scripts/write-static-seo-files.mjs",
-    "node scripts/verify-prerender-output.mjs",
-    "node scripts/verify-sitemap-coverage.mjs",
-    "node scripts/verify-render-mode.mjs",
-  ].join(" && "),
-};
-
+// 两种模式的构建链都从 vite build 走（@cloudflare/vite-plugin + postbuild 插件按模式
+// 跑 deploy-marker / 预渲染 / 校验），npm run build 与 cf deploy 同链。
 const NOT_FOUND_HANDLING = {
   spa: "single-page-application",
   prerender: "404-page",
@@ -183,7 +166,6 @@ const replacements = {
   __SITE_NAME__: siteName,
   __SITE_URL__: domain,
   __RENDER_MODE__: mode,
-  __BUILD_SCRIPT__: BUILD_SCRIPTS[mode],
   __NOT_FOUND_HANDLING__: NOT_FOUND_HANDLING[mode],
   __CLOUDFLARE_ACCOUNT_ID__: accountId ?? "${{ vars.CLOUDFLARE_ACCOUNT_ID }}",
 };
@@ -216,8 +198,8 @@ const templateVersion = existsSync(join(templateDir, "TEMPLATE_VERSION"))
   : "unknown";
 const buildNote =
   mode === "prerender"
-    ? "vite build -> prerender -> sitemap coverage -> render-mode guard"
-    : "vite build -> base-path relocation -> render-mode guard (no sitemap)";
+    ? "vite build (postbuild: prerender -> sitemap coverage -> render-mode guard)"
+    : "vite build (postbuild: base-path relocation -> render-mode guard)";
 
 const workerName = appName;
 const accountIdNote = accountId

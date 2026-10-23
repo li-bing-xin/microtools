@@ -39,12 +39,13 @@ npm run verify:deploy -- <sha> --url https://<domain>/deploy-marker.txt
 node scripts/verify-print-fit.mjs   # 打印实测（要本机 Chrome；见下）
 ```
 
-构建链（`package.json` 的 `build` 由 create-site 按模式写入）：
+构建链：`npm run build` = `vite build`（@cloudflare/vite-plugin + scripts/vite-plugin-postbuild.mjs
+在构建里写 deploy-marker，并按模式跑剩余步骤）——`cf deploy` 复用同一条链，两种入口产物一致：
 
-| 模式 | 步骤 |
+| 模式 | vite build 之后的步骤（scripts/postbuild.mjs 按模式分支） |
 |---|---|
-| `spa` | `write-deploy-marker` → `vite build` → `relocate-base-path` → `verify-render-mode` |
-| `prerender` | `write-deploy-marker` → `vite build` → `prerender-marketing` → `write-static-seo-files` → `verify-prerender-output` → `verify-sitemap-coverage` → `verify-render-mode` |
+| `spa` | `relocate-base-path` → `verify-render-mode` |
+| `prerender` | `prerender-marketing` → `write-static-seo-files` → `verify-prerender-output` → `verify-sitemap-coverage` → `verify-render-mode` |
 
 `prerender-marketing.mjs` 用 esbuild 把 `src/ssr.tsx` 打成 CJS（React 19 的 server renderer 是 CJS），逐路由 `renderToString`，head 由 `src/shared/seo` 生成，再拼出完整文档。sitemap/robots 也由同一个 SSR bundle 的 `getSeoFiles()` 算出，脚本本身不 import TS。
 

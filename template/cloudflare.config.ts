@@ -3,8 +3,8 @@ import { defineConfig } from "cf/config";
 /**
  * cf 项目配置（`cf deploy` 读取本文件；站点仓库里只有这一份部署配置）。
  *
- * 纯静态资产站：没有 Worker 运行时入口，`cf deploy` 把 dist/web 作为
- * Workers Static Assets 直接上传。
+ * 形态与 printable-studio 一致：@cloudflare/vite-plugin 构建 → Build Output，
+ * 静态资源由 Workers Static Assets 直出，src/worker/index.ts 是插件要求的 Worker 壳。
  *
  * - htmlHandling 用 auto-trailing-slash：/privacy 与 /privacy/ 都由 privacy/index.html 提供；
  * - notFoundHandling 由 create-site 按 --mode 写入：
@@ -21,11 +21,11 @@ export default defineConfig({
 	worker: {
 		name: "__APP_NAME__",
 		compatibilityDate: "2026-10-01",
+		entrypoint: "src/worker/index.ts",
 		observability: {
 			enabled: true,
 		},
 		assets: {
-			directory: "./dist/web",
 			htmlHandling: "auto-trailing-slash",
 			notFoundHandling: "__NOT_FOUND_HANDLING__",
 		},

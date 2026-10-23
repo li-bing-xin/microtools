@@ -31,7 +31,6 @@ const PLACEHOLDERS = [
   "__SITE_NAME__",
   "__SITE_URL__",
   "__RENDER_MODE__",
-  "__BUILD_SCRIPT__",
   "__NOT_FOUND_HANDLING__",
   "__CLOUDFLARE_ACCOUNT_ID__",
 ];
@@ -156,13 +155,26 @@ for (const mode of ["spa", "prerender"]) {
       cfConfig.includes(mode === "prerender" ? '"404-page"' : '"single-page-application"'),
       "notFoundHandling does not match the mode",
     );
-    if (mode === "prerender") {
-      assert.ok(manifest.scripts.build.includes("prerender-marketing.mjs"));
-      assert.ok(manifest.scripts.build.includes("verify-sitemap-coverage.mjs"));
-    } else {
-      assert.ok(!manifest.scripts.build.includes("prerender-marketing.mjs"));
+    // 构建链统一从 vite build 走（vite-plugin-postbuild 按模式跑剩余步骤），
+    // cf deploy 复用同一条链 —— package.json 不再内联步骤。
+    assert.equal(manifest.scripts.build, "vite build");
+    // postbuild.mjs 是同一份文件，两个模式的步骤都写死在里面、由 renderMode 分支；
+    // 这里校验两条链的步骤齐全（模式落点已在 site.ts / cloudflare.config.ts 断言）。
+    const postbuild = readFileSync(path.join(target, "scripts", "postbuild.mjs"), "utf8");
+    for (const step of [
+      "prerender-marketing.mjs",
+      "verify-sitemap-coverage.mjs",
+      "relocate-base-path.mjs",
+      "verify-render-mode.mjs",
+    ]) {
+      assert.ok(postbuild.includes(step), `postbuild chain misses ${step}`);
     }
-    assert.ok(manifest.scripts.build.includes("src/shared/scripts/write-deploy-marker.mjs"));
+    assert.ok(
+      readFileSync(path.join(target, "scripts", "vite-plugin-postbuild.mjs"), "utf8").includes(
+        "write-deploy-marker.mjs",
+      ),
+      "deploy-marker must be written inside the vite build",
+    );
   });
 
   check(`${mode}: cf form — no wrangler in the site's own files`, () => {
